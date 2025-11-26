@@ -1,3 +1,4 @@
+
 import { TimerMode, Settings } from './types';
 
 export const SOUNDSCAPES = [
@@ -21,6 +22,8 @@ export const DEFAULT_SETTINGS: Settings = {
   isPremium: false,
   theme: 'rose',
   personalizedAds: true,
+  dailyGoalType: 'minutes',
+  dailyGoalTarget: 120,
 };
 
 // Deprecated: Use THEME_PALETTES via App logic instead

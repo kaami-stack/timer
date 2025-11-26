@@ -1,3 +1,4 @@
+
 export enum TimerMode {
   FOCUS = 'FOCUS',
   SHORT_BREAK = 'SHORT_BREAK',
@@ -8,6 +9,7 @@ export interface Task {
   id: string;
   title: string;
   completed: boolean;
+  notes?: string;
 }
 
 export interface Settings {
@@ -23,6 +25,8 @@ export interface Settings {
   isPremium: boolean; // Simulates Ad-Free purchase
   theme: string;
   personalizedAds: boolean;
+  dailyGoalType: 'minutes' | 'sessions';
+  dailyGoalTarget: number;
 }
 
 export interface DailyStats {

@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Settings as SettingsIcon, List, BarChart2, Shield, Lock, FileText, ChevronLeft, Moon, Sun, Plus, Trash2, Check, RefreshCw, Flame, GripVertical, Edit2, Palette, X, Music, Volume2, Headphones, HelpCircle, MousePointerClick, Move, MoreHorizontal, ShieldAlert, ArrowDownAZ, CheckCircle, LayoutList } from 'lucide-react';
+import { Settings as SettingsIcon, List, BarChart2, Shield, Lock, FileText, ChevronLeft, Moon, Sun, Plus, Trash2, Check, RefreshCw, Flame, GripVertical, Edit2, Palette, X, Music, Volume2, Headphones, HelpCircle, MousePointerClick, Move, MoreHorizontal, ShieldAlert, ArrowDownAZ, CheckCircle, LayoutList, StickyNote, Target } from 'lucide-react';
 import { TimerMode, Settings, Task, DailyStats } from './types';
 import { DEFAULT_SETTINGS, MODE_LABELS, THEME_PALETTES, SOUNDSCAPES } from './constants';
 import * as Storage from './services/storageService';
@@ -126,7 +127,7 @@ const HomePage: React.FC<{
   
   // Context Menu & Editing State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; taskId: string } | null>(null);
-  const [editingTask, setEditingTask] = useState<{ id: string; title: string } | null>(null);
+  const [editingTask, setEditingTask] = useState<{ id: string; title: string; notes: string } | null>(null);
   
   // Sorting State
   const [sortBy, setSortBy] = useState<'order' | 'alpha' | 'status'>('order');
@@ -300,6 +301,20 @@ const HomePage: React.FC<{
     return count;
   }, [stats]);
 
+  // Daily Goal Logic
+  const dailyProgress = useMemo(() => {
+      const today = new Date().toISOString().split('T')[0];
+      const todayStats = stats.find(s => s.date === today);
+      const currentValue = todayStats 
+          ? (settings.dailyGoalType === 'minutes' ? todayStats.minutesFocused : todayStats.sessionsCompleted)
+          : 0;
+      return {
+          current: currentValue,
+          target: settings.dailyGoalTarget,
+          percentage: Math.min(100, (currentValue / settings.dailyGoalTarget) * 100)
+      };
+  }, [stats, settings.dailyGoalType, settings.dailyGoalTarget]);
+
   const handleTimerComplete = useCallback(() => {
     playSound();
     setIsRunning(false);
@@ -402,14 +417,18 @@ const HomePage: React.FC<{
 
   // Editing Handlers
   const startEditing = (task: Task) => {
-    setEditingTask({ id: task.id, title: task.title });
+    setEditingTask({ id: task.id, title: task.title, notes: task.notes || '' });
     setContextMenu(null);
   };
 
   const saveEdit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (editingTask && editingTask.title.trim()) {
-      const updatedTasks = tasks.map(t => t.id === editingTask.id ? { ...t, title: editingTask.title.trim() } : t);
+      const updatedTasks = tasks.map(t => t.id === editingTask.id ? { 
+        ...t, 
+        title: editingTask.title.trim(),
+        notes: editingTask.notes.trim() 
+      } : t);
       setTasks(updatedTasks);
       Storage.saveTasks(updatedTasks);
     }
@@ -540,9 +559,30 @@ const HomePage: React.FC<{
           themeColorClass={currentTheme.modes[mode]}
           progressColor={currentTheme.ui.primary}
         />
+        
+        {/* Daily Goal Widget */}
+        <div className="w-full max-w-md bg-white dark:bg-pastel-darkSurface rounded-xl p-3 shadow-sm flex items-center gap-3 relative z-10">
+            <div className={`p-2 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-300`}>
+                <Target size={18} />
+            </div>
+            <div className="flex-1">
+                <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-semibold uppercase text-gray-400 tracking-wider">Daily Goal</span>
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-200">
+                        {dailyProgress.current} <span className="text-gray-400 font-normal">/ {dailyProgress.target} {settings.dailyGoalType === 'minutes' ? 'min' : 'sessions'}</span>
+                    </span>
+                </div>
+                <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div 
+                        className={`h-full ${currentTheme.ui.primary} transition-all duration-1000 ease-out`}
+                        style={{ width: `${dailyProgress.percentage}%` }}
+                    />
+                </div>
+            </div>
+        </div>
 
         {/* Task Section */}
-        <div className="w-full max-w-md mt-6 relative z-10">
+        <div className="w-full max-w-md mt-2 relative z-10">
           <div className="flex items-center justify-between mb-2 px-1">
              <div className="flex items-center gap-2">
                <List size={18} className="text-gray-400" />
@@ -601,55 +641,94 @@ const HomePage: React.FC<{
                 onTouchStart={(e) => handleTouchStart(e, task)}
                 onTouchEnd={handleTouchEnd}
                 onTouchMove={handleTouchMove}
-                className={`group flex items-center justify-between p-3 bg-white/60 dark:bg-pastel-darkSurface/60 rounded-xl hover:bg-white dark:hover:bg-pastel-darkSurface cursor-default relative select-none transition-all duration-300 ease-out
-                   ${task.completed ? 'opacity-60 scale-[0.98] grayscale' : 'opacity-100 scale-100'}`}
+                className={`group flex items-start justify-between p-3 bg-white/60 dark:bg-pastel-darkSurface/60 rounded-xl hover:bg-white dark:hover:bg-pastel-darkSurface cursor-default relative select-none transition-all duration-300 ease-out
+                   ${task.completed ? 'opacity-60 scale-[0.98] grayscale' : 'opacity-100 scale-100'} ${editingTask?.id === task.id ? 'bg-white dark:bg-pastel-darkSurface ring-2 ring-opacity-50 ' + currentTheme.ui.ring.split(' ')[0] : ''}`}
               >
-                <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                <div className="flex items-start gap-3 flex-1 overflow-hidden w-full">
                   {sortBy === 'order' && (
-                    <div className="cursor-move text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400">
+                    <div className="cursor-move text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 mt-1">
                       <GripVertical size={16} />
                     </div>
                   )}
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
-                      task.completed 
-                        ? `${currentTheme.ui.primary} ${currentTheme.ui.border}` 
-                        : 'border-gray-300 dark:border-gray-600'
-                    }`}
-                  >
-                    {task.completed && <Check size={12} className="text-white animate-in zoom-in duration-200" />}
-                  </button>
                   
                   {editingTask?.id === task.id ? (
-                    <form onSubmit={saveEdit} className="flex-1 flex" onClick={e => e.stopPropagation()}>
+                    // Edit Mode
+                    <div className="flex-1 flex flex-col gap-2 w-full" onClick={e => e.stopPropagation()}>
                         <input 
                             autoFocus
                             type="text"
                             value={editingTask.title}
                             onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
-                            onBlur={() => saveEdit()}
-                            onKeyDown={(e) => {
-                                if(e.key === 'Escape') setEditingTask(null);
-                            }}
-                            className={`w-full bg-transparent border-b outline-none text-gray-800 dark:text-gray-100 text-sm p-0 pb-0.5 ${currentTheme.ui.border}`}
+                            placeholder="Task Title"
+                            className={`w-full bg-transparent border-b outline-none text-gray-800 dark:text-gray-100 text-sm p-1 ${currentTheme.ui.border}`}
                         />
-                    </form>
+                        <textarea 
+                            value={editingTask.notes}
+                            onChange={(e) => setEditingTask({ ...editingTask, notes: e.target.value })}
+                            placeholder="Add notes..."
+                            rows={3}
+                            className={`w-full bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2 text-xs text-gray-600 dark:text-gray-300 outline-none resize-none`}
+                        />
+                        <div className="flex justify-end gap-2 mt-1">
+                            <button 
+                                onClick={() => setEditingTask(null)}
+                                className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={(e) => saveEdit(e)}
+                                className={`px-3 py-1 text-xs text-white rounded-md ${currentTheme.ui.primary}`}
+                            >
+                                Save
+                            </button>
+                        </div>
+                    </div>
                   ) : (
-                    <span 
-                      onDoubleClick={() => startEditing(task)}
-                      className={`text-sm truncate transition-all duration-300 ${task.completed ? 'line-through text-gray-400' : 'text-gray-700 dark:text-gray-200'}`}
-                    >
-                      {task.title}
-                    </span>
+                    // View Mode
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-3">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
+                            className={`w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
+                              task.completed 
+                                ? `${currentTheme.ui.primary} ${currentTheme.ui.border}` 
+                                : 'border-gray-300 dark:border-gray-600'
+                            }`}
+                          >
+                            {task.completed && <Check size={12} className="text-white animate-in zoom-in duration-200" />}
+                          </button>
+                          
+                          <div className="flex-1 min-w-0" onDoubleClick={() => startEditing(task)}>
+                              <div className="flex items-center gap-2">
+                                  <span 
+                                    className={`text-sm truncate transition-all duration-300 ${task.completed ? 'line-through text-gray-400' : 'text-gray-700 dark:text-gray-200'}`}
+                                  >
+                                    {task.title}
+                                  </span>
+                                  {task.notes && (
+                                      <StickyNote size={12} className={`flex-shrink-0 ${currentTheme.ui.text}`} />
+                                  )}
+                              </div>
+                              {task.notes && (
+                                <p className="text-[10px] text-gray-400 truncate mt-0.5 leading-tight">
+                                    {task.notes}
+                                </p>
+                              )}
+                          </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}
-                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-opacity"
-                >
-                  <Trash2 size={16} />
-                </button>
+                
+                {editingTask?.id !== task.id && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-opacity ml-2 mt-1"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             ))}
             {tasks.length === 0 && (
@@ -677,7 +756,7 @@ const HomePage: React.FC<{
                    return (
                      <>
                         <button onClick={() => startEditing(task)} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5">
-                            <Edit2 size={15} /> Edit Task
+                            <Edit2 size={15} /> Edit Task & Notes
                         </button>
                         <button onClick={() => { toggleTask(task.id); setContextMenu(null); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5">
                             {task.completed ? <X size={15} /> : <Check size={15} />} 
@@ -884,281 +963,267 @@ const SettingsPage: React.FC<{
   };
 
   const purchasePremium = () => {
-    // Simulating IAP
-    if (confirm("Simulate In-App Purchase for Ad-Free version?")) {
+    if (confirm("Simulate In-App Purchase for 'Ad-Free Premium'?\n(In a real app, this triggers Google Play Billing)")) {
       updateSettings({ ...settings, isPremium: true });
+      alert("Thank you! Ads have been removed.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-pastel-cream dark:bg-pastel-dark flex flex-col">
-       <header className="p-6 flex items-center gap-4 bg-white dark:bg-pastel-darkSurface shadow-sm">
+    <div className="min-h-screen bg-pastel-cream dark:bg-pastel-dark pb-20">
+      <header className="p-6 flex items-center gap-4 bg-white dark:bg-pastel-darkSurface shadow-sm sticky top-0 z-30">
         <Link to="/" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-600 dark:text-gray-200">
           <ChevronLeft size={24} />
         </Link>
         <h1 className="text-xl font-bold text-gray-800 dark:text-white">Settings</h1>
       </header>
-      
-      <div className="p-6 space-y-6 max-w-lg mx-auto w-full pb-24">
+
+      <div className="p-6 space-y-8 max-w-2xl mx-auto">
         
-        {/* Appearance & Sound */}
-        <section className="bg-white dark:bg-pastel-darkSurface rounded-2xl p-4 shadow-sm space-y-4">
-           <h2 className="text-sm font-bold uppercase text-gray-400 tracking-wider mb-2">Appearance</h2>
-           
-           {/* Theme Selection */}
-           <div className="pb-4 border-b border-gray-100 dark:border-gray-700">
-             <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200">
-                    <Palette size={18} />
-                    <span>Color Theme</span>
-                </div>
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
-                    {THEME_PALETTES[settings.theme]?.label || 'Rose'}
-                </span>
-             </div>
-             <div className="flex gap-4 justify-start">
-               {Object.entries(THEME_PALETTES).map(([key, palette]) => (
-                 <button
-                   key={key}
-                   onClick={() => updateSettings({ ...settings, theme: key })}
-                   className={`w-10 h-10 rounded-full ${palette.color} shadow-sm transition-transform hover:scale-105 flex items-center justify-center`}
-                   aria-label={`Select ${palette.label} theme`}
-                 >
-                   {settings.theme === key && (
-                     <div className="w-11 h-11 rounded-full border-2 border-gray-400 dark:border-gray-200 absolute"></div>
-                   )}
-                   {settings.theme === key && <Check size={16} className="text-white" />}
-                 </button>
-               ))}
-             </div>
-           </div>
-
-           <button onClick={() => toggleSetting('darkMode')} className="flex items-center justify-between w-full">
-             <div className="flex items-center gap-3">
-               {settings.darkMode ? <Moon size={18} /> : <Sun size={18} />}
-               <span className="text-gray-700 dark:text-gray-200">Dark Mode</span>
-             </div>
-             <div className={`w-10 h-6 rounded-full p-1 transition-colors ${settings.darkMode ? 'bg-indigo-400' : 'bg-gray-300'}`}>
-                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${settings.darkMode ? 'translate-x-4' : ''}`} />
-             </div>
-           </button>
-        </section>
-
-        {/* Ambient Soundscapes Section (New) */}
-        <section className="bg-white dark:bg-pastel-darkSurface rounded-2xl p-4 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 mb-1 text-gray-700 dark:text-gray-200">
-            <Headphones size={18} />
-            <h2 className="text-sm font-bold uppercase text-gray-400 tracking-wider">Ambient Soundscapes</h2>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3">
-            {SOUNDSCAPES.map((sound) => (
-              <button
-                key={sound.id}
-                onClick={() => handleSoundscapeChange(sound.id)}
-                className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all ${
-                  settings.soundscape === sound.id
-                  ? `${currentTheme.ui.border} bg-gray-50 dark:bg-gray-800`
-                  : 'border-transparent bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                <span className={`font-medium text-sm ${settings.soundscape === sound.id ? currentTheme.ui.text : 'text-gray-600 dark:text-gray-300'}`}>
-                  {sound.label}
-                </span>
-              </button>
-            ))}
-          </div>
-          
-          <div className="space-y-2 pt-2">
-            <div className="flex justify-between text-xs text-gray-500">
-               <span>Master Volume</span>
-               <span>{settings.soundscapeVolume}%</span>
-            </div>
-            <input 
-               type="range" 
-               min="0" 
-               max="100" 
-               value={settings.soundscapeVolume} 
-               onChange={(e) => updateSettings({ ...settings, soundscapeVolume: parseInt(e.target.value) })}
-               className={`w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-${currentTheme.ui.text.split('-')[1]}-500`}
-            />
-          </div>
-        </section>
-
-        {/* Timer Config */}
-        <section className="bg-white dark:bg-pastel-darkSurface rounded-2xl p-4 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold uppercase text-gray-400 tracking-wider mb-2">Timer</h2>
-          <div className="grid grid-cols-3 gap-4">
-             <div className="space-y-1">
-               <label className="text-xs text-gray-500">Focus (m)</label>
-               <input 
-                 type="number" 
-                 value={settings.focusDuration} 
-                 onChange={(e) => handleDurationChange('focusDuration', parseInt(e.target.value))}
-                 className="w-full p-2 bg-gray-50 dark:bg-gray-700 rounded-lg text-center dark:text-white"
-               />
-             </div>
-             <div className="space-y-1">
-               <label className="text-xs text-gray-500">Short Break</label>
-               <input 
-                 type="number" 
-                 value={settings.shortBreakDuration} 
-                 onChange={(e) => handleDurationChange('shortBreakDuration', parseInt(e.target.value))}
-                 className="w-full p-2 bg-gray-50 dark:bg-gray-700 rounded-lg text-center dark:text-white"
-               />
-             </div>
-             <div className="space-y-1">
-               <label className="text-xs text-gray-500">Long Break</label>
-               <input 
-                 type="number" 
-                 value={settings.longBreakDuration} 
-                 onChange={(e) => handleDurationChange('longBreakDuration', parseInt(e.target.value))}
-                 className="w-full p-2 bg-gray-50 dark:bg-gray-700 rounded-lg text-center dark:text-white"
-               />
-             </div>
-          </div>
-          
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-gray-700 dark:text-gray-200">Auto-start Breaks</span>
-            <input 
-              type="checkbox" 
-              checked={settings.autoStartBreaks} 
-              onChange={() => toggleSetting('autoStartBreaks')}
-              className={`w-5 h-5 rounded ${currentTheme.ui.text} focus:ring-0`}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-700 dark:text-gray-200">Auto-start Focus</span>
-            <input 
-              type="checkbox" 
-              checked={settings.autoStartPomodoros} 
-              onChange={() => toggleSetting('autoStartPomodoros')}
-              className={`w-5 h-5 rounded ${currentTheme.ui.text} focus:ring-0`}
-            />
-          </div>
-          
-          <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
-          
-           <button onClick={() => toggleSetting('soundEnabled')} className="flex items-center justify-between w-full">
-             <div className="flex items-center gap-3">
-               <span className="text-gray-700 dark:text-gray-200">Sound Effects</span>
-             </div>
-             <input type="checkbox" checked={settings.soundEnabled} onChange={() => toggleSetting('soundEnabled')} className={`w-5 h-5 rounded ${currentTheme.ui.text} focus:ring-0`} />
-           </button>
-        </section>
-
-        {/* Ad Preferences */}
+        {/* Premium Banner */}
         {!settings.isPremium && (
-          <section className="bg-white dark:bg-pastel-darkSurface rounded-2xl p-4 shadow-sm space-y-4">
-             <div className="flex items-center gap-2 mb-1 text-gray-700 dark:text-gray-200">
-                <ShieldAlert size={18} />
-                <h2 className="text-sm font-bold uppercase text-gray-400 tracking-wider">Ad Privacy</h2>
-             </div>
-             
-             <button onClick={() => toggleSetting('personalizedAds')} className="flex items-center justify-between w-full">
-               <div className="text-left">
-                 <span className="block text-gray-700 dark:text-gray-200 text-sm font-medium">Personalized Ads</span>
-                 <span className="block text-xs text-gray-500 mt-0.5">Allow Google to show relevant ads</span>
-               </div>
-               <div className={`w-10 h-6 rounded-full p-1 transition-colors ${settings.personalizedAds ? 'bg-indigo-400' : 'bg-gray-300'}`}>
-                  <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${settings.personalizedAds ? 'translate-x-4' : ''}`} />
-               </div>
-             </button>
-          </section>
+          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-lg">Go Premium</h3>
+              <p className="text-indigo-100 text-sm opacity-90">Remove ads & unlock all themes</p>
+            </div>
+            <button 
+              onClick={purchasePremium}
+              className="px-4 py-2 bg-white text-indigo-600 rounded-lg font-semibold text-sm hover:bg-indigo-50 transition-colors"
+            >
+              Upgrade
+            </button>
+          </div>
         )}
-
-        {/* Premium */}
-        <section className="bg-gradient-to-r from-rose-100 to-indigo-100 dark:from-rose-900 dark:to-indigo-900 rounded-2xl p-6 shadow-sm">
-           <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-bold text-gray-800 dark:text-white mb-1">SereneFocus Premium</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Remove ads and support development.</p>
-              </div>
-              <Shield className="text-indigo-500" size={32} />
+        
+        {/* Daily Goal Settings */}
+        <section className="space-y-4">
+           <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+             <Target size={16} /> Daily Goals
+           </h2>
+           <div className="bg-white dark:bg-pastel-darkSurface rounded-2xl p-4 shadow-sm space-y-4">
+               <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-700 dark:text-gray-200 font-medium">Goal Type</span>
+                    <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                        <button 
+                            onClick={() => updateSettings({ ...settings, dailyGoalType: 'minutes' })}
+                            className={`px-3 py-1 text-xs rounded-md transition-all ${settings.dailyGoalType === 'minutes' ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
+                        >
+                            Minutes
+                        </button>
+                        <button 
+                            onClick={() => updateSettings({ ...settings, dailyGoalType: 'sessions' })}
+                            className={`px-3 py-1 text-xs rounded-md transition-all ${settings.dailyGoalType === 'sessions' ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
+                        >
+                            Sessions
+                        </button>
+                    </div>
+               </div>
+               
+               <div>
+                   <div className="flex justify-between items-center mb-2">
+                       <span className="text-gray-700 dark:text-gray-200 font-medium">Target</span>
+                       <span className="text-sm font-bold text-indigo-500">
+                           {settings.dailyGoalTarget} {settings.dailyGoalType === 'minutes' ? 'min' : 'sessions'}
+                       </span>
+                   </div>
+                   <input 
+                       type="range" 
+                       min={settings.dailyGoalType === 'minutes' ? 10 : 1} 
+                       max={settings.dailyGoalType === 'minutes' ? 480 : 20} 
+                       step={settings.dailyGoalType === 'minutes' ? 10 : 1}
+                       value={settings.dailyGoalTarget} 
+                       onChange={(e) => updateSettings({ ...settings, dailyGoalTarget: parseInt(e.target.value) })}
+                       className={`w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-${currentTheme.ui.text.split('-')[1]}-500`}
+                    />
+                    <p className="text-xs text-gray-400 mt-2">
+                        {settings.dailyGoalType === 'minutes' 
+                            ? 'Total focus time you want to achieve today.' 
+                            : 'Number of focus sessions you want to complete today.'}
+                    </p>
+               </div>
            </div>
-           {settings.isPremium ? (
-             <div className="px-4 py-2 bg-white/50 dark:bg-black/20 rounded-lg text-center font-bold text-indigo-600 dark:text-indigo-300">
-               Active
-             </div>
-           ) : (
-             <button onClick={purchasePremium} className="w-full py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-bold hover:opacity-90 transition-opacity">
-               Go Ad-Free ($1.99)
-             </button>
-           )}
         </section>
 
-        {/* Legal */}
-        <section className="bg-white dark:bg-pastel-darkSurface rounded-2xl p-4 shadow-sm space-y-1">
-          <Link to="/help" className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
-            <span className="flex items-center gap-3 text-gray-700 dark:text-gray-200"><HelpCircle size={16} /> Help & Guide</span>
-            <ChevronLeft size={16} className="rotate-180 text-gray-400" />
-          </Link>
-          <div className="h-px bg-gray-100 dark:bg-gray-700 mx-3 my-1"></div>
-          <Link to="/privacy" className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
-            <span className="flex items-center gap-3 text-gray-700 dark:text-gray-200"><Lock size={16} /> Privacy Policy</span>
-            <ChevronLeft size={16} className="rotate-180 text-gray-400" />
-          </Link>
-          <Link to="/terms" className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
-            <span className="flex items-center gap-3 text-gray-700 dark:text-gray-200"><FileText size={16} /> Terms of Use</span>
-            <ChevronLeft size={16} className="rotate-180 text-gray-400" />
-          </Link>
-          <Link to="/data-safety" className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
-            <span className="flex items-center gap-3 text-gray-700 dark:text-gray-200"><Shield size={16} /> Data Safety</span>
-            <ChevronLeft size={16} className="rotate-180 text-gray-400" />
-          </Link>
+        {/* Timer Settings */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+            <SettingsIcon size={16} /> Timer
+          </h2>
+          <div className="bg-white dark:bg-pastel-darkSurface rounded-2xl p-4 shadow-sm space-y-6">
+            <div className="space-y-4">
+               <div className="flex justify-between items-center">
+                 <label className="text-gray-700 dark:text-gray-200 font-medium">Focus Duration</label>
+                 <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-500 w-8 text-right">{settings.focusDuration}m</span>
+                    <input type="range" min="1" max="60" value={settings.focusDuration} onChange={(e) => handleDurationChange('focusDuration', parseInt(e.target.value))} className={`accent-${currentTheme.ui.text.split('-')[1]}-500`} />
+                 </div>
+               </div>
+               <div className="flex justify-between items-center">
+                 <label className="text-gray-700 dark:text-gray-200 font-medium">Short Break</label>
+                 <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-500 w-8 text-right">{settings.shortBreakDuration}m</span>
+                    <input type="range" min="1" max="30" value={settings.shortBreakDuration} onChange={(e) => handleDurationChange('shortBreakDuration', parseInt(e.target.value))} className={`accent-${currentTheme.ui.text.split('-')[1]}-500`} />
+                 </div>
+               </div>
+               <div className="flex justify-between items-center">
+                 <label className="text-gray-700 dark:text-gray-200 font-medium">Long Break</label>
+                 <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-500 w-8 text-right">{settings.longBreakDuration}m</span>
+                    <input type="range" min="5" max="60" value={settings.longBreakDuration} onChange={(e) => handleDurationChange('longBreakDuration', parseInt(e.target.value))} className={`accent-${currentTheme.ui.text.split('-')[1]}-500`} />
+                 </div>
+               </div>
+            </div>
+
+            <div className="h-px bg-gray-100 dark:bg-gray-700"></div>
+
+            <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                    <span className="text-gray-700 dark:text-gray-200">Auto-start Breaks</span>
+                    <button 
+                        onClick={() => toggleSetting('autoStartBreaks')}
+                        className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.autoStartBreaks ? currentTheme.ui.primary : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${settings.autoStartBreaks ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+                <div className="flex justify-between items-center">
+                    <span className="text-gray-700 dark:text-gray-200">Auto-start Pomodoros</span>
+                    <button 
+                        onClick={() => toggleSetting('autoStartPomodoros')}
+                        className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.autoStartPomodoros ? currentTheme.ui.primary : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${settings.autoStartPomodoros ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Appearance & Sound */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+             <Palette size={16} /> Appearance & Sound
+          </h2>
+          <div className="bg-white dark:bg-pastel-darkSurface rounded-2xl p-4 shadow-sm space-y-6">
+            
+            {/* Theme Selector */}
+            <div className="space-y-3">
+                <label className="text-gray-700 dark:text-gray-200 font-medium block">Theme</label>
+                <div className="grid grid-cols-4 gap-2">
+                    {Object.entries(THEME_PALETTES).map(([key, palette]) => (
+                        <button
+                            key={key}
+                            onClick={() => updateSettings({ ...settings, theme: key })}
+                            className={`flex flex-col items-center gap-2 p-2 rounded-xl border-2 transition-all ${settings.theme === key ? 'border-gray-400 bg-gray-50 dark:bg-gray-700' : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                        >
+                            <div className={`w-8 h-8 rounded-full ${palette.color} shadow-sm`}></div>
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{palette.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+            
+            <div className="h-px bg-gray-100 dark:bg-gray-700"></div>
+
+            <div className="flex justify-between items-center">
+                <span className="text-gray-700 dark:text-gray-200 flex items-center gap-2">
+                    {settings.darkMode ? <Moon size={18} /> : <Sun size={18} />} Dark Mode
+                </span>
+                <button 
+                    onClick={() => toggleSetting('darkMode')}
+                    className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.darkMode ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                    <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${settings.darkMode ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+            </div>
+            
+            <div className="flex justify-between items-center">
+                <span className="text-gray-700 dark:text-gray-200 flex items-center gap-2">
+                    {settings.soundEnabled ? <Volume2 size={18} /> : <Volume2 size={18} className="opacity-50" />} Timer Sounds
+                </span>
+                <button 
+                    onClick={() => toggleSetting('soundEnabled')}
+                    className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.soundEnabled ? currentTheme.ui.primary : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                    <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${settings.soundEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+            </div>
+
+            {/* Soundscapes in Settings */}
+            <div className="space-y-3">
+                <label className="text-gray-700 dark:text-gray-200 font-medium block">Ambient Sound</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {SOUNDSCAPES.map((sound) => (
+                        <button
+                           key={sound.id}
+                           onClick={() => handleSoundscapeChange(sound.id)}
+                           className={`px-3 py-2 rounded-lg text-sm text-left flex items-center justify-between border transition-all ${settings.soundscape === sound.id 
+                             ? `${currentTheme.ui.border} ${currentTheme.ui.primary} text-white` 
+                             : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                        >
+                            {sound.label}
+                            {settings.soundscape === sound.id && <Check size={14} />}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+          </div>
+        </section>
+
+        {/* Legal & Privacy */}
+        <section className="space-y-4">
+           <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+             <Shield size={16} /> Privacy & Legal
+           </h2>
+           <div className="bg-white dark:bg-pastel-darkSurface rounded-2xl p-1 shadow-sm overflow-hidden">
+              <Link to="/data-safety" className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700">
+                  <span className="text-gray-700 dark:text-gray-200 text-sm">Data Safety & Storage</span>
+                  <ChevronLeft size={16} className="rotate-180 text-gray-400" />
+              </Link>
+              <Link to="/help" className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700">
+                  <span className="text-gray-700 dark:text-gray-200 text-sm">Help & Guide</span>
+                  <ChevronLeft size={16} className="rotate-180 text-gray-400" />
+              </Link>
+              
+              <div className="p-4 flex items-center justify-between">
+                  <div className="flex flex-col">
+                      <span className="text-gray-700 dark:text-gray-200 text-sm">Personalized Ads</span>
+                      <span className="text-xs text-gray-400">Allow Google to use data for relevant ads</span>
+                  </div>
+                  <button 
+                    onClick={() => toggleSetting('personalizedAds')}
+                    className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.personalizedAds ? currentTheme.ui.primary : 'bg-gray-300 dark:bg-gray-600'}`}
+                    disabled={settings.isPremium}
+                  >
+                     <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${settings.personalizedAds ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
+              </div>
+           </div>
+           
+           <div className="flex justify-center gap-6 text-xs text-gray-400 pt-4">
+               <button onClick={() => alert("Privacy Policy:\n\nThis app stores data locally. No personal data is sent to our servers. AdMob services may collect device identifiers for advertising purposes.")} className="hover:underline">Privacy Policy</button>
+               <button onClick={() => alert("Terms of Use:\n\nBy using this app, you agree to local data storage.")} className="hover:underline">Terms of Use</button>
+               <a href="mailto:support@serenefocus.app" className="hover:underline">Contact Support</a>
+           </div>
         </section>
         
-        <div className="text-center text-xs text-gray-400">
-           Version 1.2.0 | support@serenefocus.app
+        <div className="text-center text-xs text-gray-300 pt-6 pb-4">
+            v1.2.0 • SereneFocus
         </div>
       </div>
     </div>
   );
 };
 
-const LegalPage: React.FC<{ type: 'Privacy' | 'Terms' }> = ({ type }) => {
-  return (
-    <div className="min-h-screen bg-white dark:bg-pastel-dark p-6">
-       <Link to="/settings" className="inline-flex items-center gap-2 text-gray-500 mb-6">
-         <ChevronLeft size={20} /> Back
-       </Link>
-       <h1 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{type === 'Privacy' ? 'Privacy Policy' : 'Terms of Use'}</h1>
-       <div className="prose dark:prose-invert text-sm text-gray-600 dark:text-gray-300 space-y-4">
-         {type === 'Privacy' ? (
-           <>
-             <p><strong>Last updated: Oct 2023</strong></p>
-             <p>This Privacy Policy describes Our policies and procedures on the collection, use and disclosure of Your information.</p>
-             <h3>Data Collection</h3>
-             <p>We do not collect personal data. All application data (tasks, timer settings) is stored locally on your device using LocalStorage.</p>
-             <h3>Advertising</h3>
-             <p>We use Google AdMob to display advertisements. AdMob may collect and use your device's advertising ID to serve personalized ads. You can opt-out of personalized ads in the Settings menu.</p>
-             <h3>Contact</h3>
-             <p>If you have any questions about this Privacy Policy, You can contact us: support@serenefocus.app</p>
-           </>
-         ) : (
-           <>
-             <p><strong>Last updated: Oct 2023</strong></p>
-             <h3>Acceptance of Terms</h3>
-             <p>By downloading or using the app, these terms will automatically apply to you.</p>
-             <h3>Use of the App</h3>
-             <p>You agree to use the app only for lawful purposes. You are not allowed to copy, or modify the app, any part of the app, or our trademarks in any way.</p>
-             <h3>Subscriptions</h3>
-             <p>If you purchase the "Ad-Free" version, it is a one-time purchase processed by the Store. We do not store payment information.</p>
-           </>
-         )}
-       </div>
-    </div>
-  );
-};
-
-// --- Main App Component ---
-
 const App: React.FC = () => {
-  const [settings, setSettings] = useState<Settings>(Storage.getSettings());
-  const [tasks, setTasks] = useState<Task[]>(Storage.getTasks());
-  const [stats, setStats] = useState<DailyStats[]>(Storage.getStats());
+  // Load settings and tasks from local storage on mount
+  const [settings, setSettings] = useState<Settings>(() => Storage.getSettings());
+  const [tasks, setTasks] = useState<Task[]>(() => Storage.getTasks());
+  const [stats, setStats] = useState<DailyStats[]>(() => Storage.getStats());
 
-  // Apply Theme
+  // Update body class for dark mode
   useEffect(() => {
     if (settings.darkMode) {
       document.documentElement.classList.add('dark');
@@ -1172,24 +1237,14 @@ const App: React.FC = () => {
     Storage.saveSettings(newSettings);
   };
 
-  // Ensure default soundscape is set if missing (for legacy data)
-  useEffect(() => {
-      if (settings.soundscape === undefined) {
-          updateSettings({ ...settings, soundscape: DEFAULT_SETTINGS.soundscape, soundscapeVolume: DEFAULT_SETTINGS.soundscapeVolume });
-      }
-      if (settings.personalizedAds === undefined) {
-         updateSettings({ ...settings, personalizedAds: DEFAULT_SETTINGS.personalizedAds });
-      }
-  }, []);
-
   return (
     <Router>
-      <div className="min-h-screen text-gray-900 dark:text-white font-sans antialiased transition-colors duration-300">
+      <div className="min-h-screen font-sans antialiased text-gray-900 dark:text-gray-100 transition-colors duration-300">
         <Routes>
           <Route path="/" element={
             <HomePage 
               settings={settings} 
-              updateSettings={updateSettings}
+              updateSettings={updateSettings} 
               tasks={tasks} 
               setTasks={setTasks} 
               stats={stats}
@@ -1197,15 +1252,15 @@ const App: React.FC = () => {
             />
           } />
           <Route path="/settings" element={
-            <SettingsPage settings={settings} updateSettings={updateSettings} />
+            <SettingsPage 
+              settings={settings} 
+              updateSettings={updateSettings} 
+            />
           } />
           <Route path="/help" element={<HelpPage />} />
-          <Route path="/privacy" element={<LegalPage type="Privacy" />} />
-          <Route path="/terms" element={<LegalPage type="Terms" />} />
           <Route path="/data-safety" element={<DataSafetyPage />} />
         </Routes>
-        
-        {/* Persistent Ad Banner - Strict Placement */}
+
         <AdBanner isPremium={settings.isPremium} personalizedAds={settings.personalizedAds} />
       </div>
     </Router>
