@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>SereneFocus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              pastel: {
+                cream: '#FDFBF7',
+                mint: '#E0F2F1',
+                rose: '#FCE4EC',
+                lavender: '#EDE7F6',
+                sky: '#E1F5FE',
+                slate: '#455A64',
+                dark: '#263238',
+                darkSurface: '#37474F'
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Smooth scrolling and aesthetic scrollbar */
+      html { scroll-behavior: smooth; }
+      body { -webkit-tap-highlight-color: transparent; }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+      .dark ::-webkit-scrollbar-thumb { background: #546E7A; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.6",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-pastel-cream text-pastel-slate dark:bg-pastel-dark dark:text-pastel-mint transition-colors duration-300">
+    <div id="root"></div>
+  </body>
+</html>

@@ -1,0 +1,5 @@
+{
+  "name": "SereneFocus",
+  "description": "A calm, aesthetic Pomodoro timer with task management, strict ad placement simulations, and local data persistence.",
+  "requestFramePermissions": []
+}
